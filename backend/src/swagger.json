@@ -1,0 +1,1197 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Uni Connect API",
+        "version": "1.0.0",
+        "description": "REST API for the Uni Connect chat app.\n\n**Authentication.** `POST /auth/login` returns a short-lived (15 minute) JWT access token in the response body and sets a long-lived (7 day) `refreshToken` as an httpOnly cookie. Send the access token as `Authorization: Bearer <token>` on every non-auth endpoint. When it expires, call `POST /auth/refresh` (the cookie is sent automatically) to get a new one.\n\nIn Swagger UI, click **Authorize** and paste the access token to try the protected endpoints."
+    },
+    "servers": [
+        {
+            "url": "http://localhost:5001/api"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Registration, login, logout, token refresh (public)"
+        },
+        {
+            "name": "User",
+            "description": "The signed-in user's profile"
+        },
+        {
+            "name": "Friends",
+            "description": "Friend requests and the friend list"
+        },
+        {
+            "name": "Conversations",
+            "description": "Private and group conversations, and their message history"
+        },
+        {
+            "name": "Messages",
+            "description": "Sending direct and group messages"
+        }
+    ],
+    "security": [
+        {
+            "BearerAuth": []
+        }
+    ],
+    "paths": {
+        "/auth/register": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Register a new account",
+                "description": "Creates a user. `displayName` is derived from `firstName` and `lastName`. Returns no body.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "username",
+                                    "firstName",
+                                    "lastName",
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "username": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "description": "Lowercased and trimmed. Must be unique."
+                                    },
+                                    "firstName": {
+                                        "type": "string"
+                                    },
+                                    "lastName": {
+                                        "type": "string"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "Lowercased and trimmed. Must be unique."
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "minLength": 6
+                                    }
+                                }
+                            },
+                            "example": {
+                                "username": "quan2006",
+                                "firstName": "Quan",
+                                "lastName": "Nguyen",
+                                "email": "quan@gmail.com",
+                                "password": "secret123"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "Account created."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Log in",
+                "description": "Returns an access token and sets the `refreshToken` httpOnly cookie.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "username",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "username": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password"
+                                    }
+                                }
+                            },
+                            "example": {
+                                "username": "quan2006",
+                                "password": "secret123"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Logged in. Sets the `refreshToken` cookie.",
+                        "headers": {
+                            "Set-Cookie": {
+                                "description": "`refreshToken=<token>; HttpOnly; Secure; SameSite=None; Max-Age=604800`",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "accessToken": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "message": "Quan Nguyen logged in successfully!",
+                                    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Log out",
+                "description": "Deletes the session tied to the `refreshToken` cookie and clears it. Succeeds even when no cookie is sent.",
+                "security": [],
+                "responses": {
+                    "204": {
+                        "description": "Logged out."
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get a new access token",
+                "description": "Reads the `refreshToken` cookie and issues a fresh 15-minute access token. Takes no request body.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "A new access token.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "accessToken": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/user/me": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Get the signed-in user",
+                "responses": {
+                    "200": {
+                        "description": "The current user (password excluded).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "user": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/user/test": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Auth smoke test",
+                "description": "Returns 204 when your access token is valid. Useful for checking the Authorize header.",
+                "responses": {
+                    "204": {
+                        "description": "Token is valid."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/friends": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "List friends",
+                "responses": {
+                    "200": {
+                        "description": "Your friends.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "friends": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FriendSummary"
+                                            }
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "friends": [
+                                        {
+                                            "_id": "6aa8ebad6075d885beb748a7",
+                                            "displayName": "Quan Nguyen",
+                                            "profilePictureUrl": null
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/friends/requests": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "List friend requests",
+                "description": "Returns requests you have **sent** and requests you have **received**.",
+                "responses": {
+                    "200": {
+                        "description": "Sent and received requests.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "sent": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FriendRequest"
+                                            }
+                                        },
+                                        "received": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FriendRequest"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Send a friend request",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "to"
+                                ],
+                                "properties": {
+                                    "to": {
+                                        "$ref": "#/components/schemas/ObjectId"
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    }
+                                }
+                            },
+                            "example": {
+                                "to": "6aa8ebad6075d885beb748a7",
+                                "message": "Hey, let's connect!"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Request created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "request": {
+                                            "$ref": "#/components/schemas/FriendRequest"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Already friends, a request already exists between you, or the user does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error. Also returned when `to` is not a valid 24-character ObjectId.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/friends/requests/{requestId}/accept": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Accept a friend request",
+                "parameters": [
+                    {
+                        "name": "requestId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/ObjectId"
+                        },
+                        "description": "Id of the friend request, from `GET /friends/requests`."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Request accepted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "newFriend": {
+                                            "$ref": "#/components/schemas/FriendSummary"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/friends/requests/{requestId}/reject": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Reject a friend request",
+                "parameters": [
+                    {
+                        "name": "requestId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/ObjectId"
+                        },
+                        "description": "Id of the friend request, from `GET /friends/requests`."
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Request rejected."
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/conversations": {
+            "get": {
+                "tags": [
+                    "Conversations"
+                ],
+                "summary": "List your conversations",
+                "description": "Newest activity first. Participants are populated with display name and avatar.",
+                "responses": {
+                    "200": {
+                        "description": "Your conversations.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "conversations": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Conversation"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Conversations"
+                ],
+                "summary": "Create a conversation",
+                "description": "For `private`, `memberIds` holds exactly one other user id, and an existing conversation is reused when one already exists. For `group`, `name` is required and `memberIds` lists everyone except you.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "type",
+                                    "memberIds"
+                                ],
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "private",
+                                            "group"
+                                        ]
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Group name. Required when `type` is `group`."
+                                    },
+                                    "memberIds": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "items": {
+                                            "$ref": "#/components/schemas/ObjectId"
+                                        }
+                                    }
+                                }
+                            },
+                            "example": {
+                                "type": "private",
+                                "memberIds": [
+                                    "6aa8ebad6075d885beb748a7"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Conversation created, or the existing private one returned.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "conversation": {
+                                            "$ref": "#/components/schemas/Conversation"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "`type` is missing or invalid, `memberIds` is empty, or a group is missing `name`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error. Also returned when a `memberIds` entry is not a valid 24-character ObjectId.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{conversationId}/messages": {
+            "get": {
+                "tags": [
+                    "Conversations"
+                ],
+                "summary": "Get a conversation's messages",
+                "description": "Cursor paginated, oldest to newest within each page. To load older messages, pass the returned `nextPtr` back as `pointer`. `nextPtr` is `null` on the last page.",
+                "parameters": [
+                    {
+                        "name": "conversationId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/ObjectId"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100,
+                            "default": 50
+                        },
+                        "description": "Messages per page (1-100)."
+                    },
+                    {
+                        "name": "pointer",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "description": "`nextPtr` from the previous page. Returns messages older than this timestamp."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A page of messages.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "messages": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Message"
+                                            }
+                                        },
+                                        "nextPtr": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid `conversationId`, `limit`, or `pointer`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/messages/private": {
+            "post": {
+                "tags": [
+                    "Messages"
+                ],
+                "summary": "Send a direct message",
+                "description": "You must already be friends with `recipientId`. Omit `conversationId` to start a new thread.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "recipientId",
+                                    "content"
+                                ],
+                                "properties": {
+                                    "recipientId": {
+                                        "$ref": "#/components/schemas/ObjectId"
+                                    },
+                                    "content": {
+                                        "type": "string"
+                                    },
+                                    "conversationId": {
+                                        "$ref": "#/components/schemas/ObjectId"
+                                    }
+                                }
+                            },
+                            "example": {
+                                "recipientId": "6aa8ebad6075d885beb748a7",
+                                "content": "Hello!"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Message sent.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "$ref": "#/components/schemas/Message"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "`recipientId` or `content` is missing.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "You are not friends with this user.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/messages/group": {
+            "post": {
+                "tags": [
+                    "Messages"
+                ],
+                "summary": "Send a group message",
+                "description": "You must be a participant of the conversation.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "conversationId",
+                                    "content"
+                                ],
+                                "properties": {
+                                    "conversationId": {
+                                        "$ref": "#/components/schemas/ObjectId"
+                                    },
+                                    "content": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "example": {
+                                "conversationId": "6aaa08f022ae08e58ac87a34",
+                                "content": "Hi everyone"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Message sent.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "$ref": "#/components/schemas/Message"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "`content` is missing.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "You are not a participant of this conversation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Access token from `POST /auth/login` or `POST /auth/refresh`."
+            }
+        },
+        "responses": {
+            "BadRequest": {
+                "description": "A required field is missing or invalid.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Unauthorized": {
+                "description": "Credentials are invalid, or the access token is missing.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "The access token is invalid or expired, or you are not allowed to perform this action.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "The requested resource does not exist.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "ServerError": {
+                "description": "Unexpected server error.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "ObjectId": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{24}$",
+                "example": "6aa8ebad6075d885beb748a7"
+            },
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "example": {
+                    "message": "Internal Server Error"
+                }
+            },
+            "User": {
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "username": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "firstName": {
+                        "type": "string"
+                    },
+                    "lastName": {
+                        "type": "string"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "profilePictureUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "nullable": true
+                    },
+                    "phoneNumber": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "FriendSummary": {
+                "type": "object",
+                "description": "A trimmed user, as returned in friend lists.",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "profilePictureUrl": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "FriendRequest": {
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "from": {
+                        "description": "Populated with user details on `GET /friends/requests` (received list), otherwise an id.",
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ObjectId"
+                            },
+                            {
+                                "$ref": "#/components/schemas/FriendSummary"
+                            }
+                        ]
+                    },
+                    "to": {
+                        "description": "Populated with user details on `GET /friends/requests` (sent list), otherwise an id.",
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ObjectId"
+                            },
+                            {
+                                "$ref": "#/components/schemas/FriendSummary"
+                            }
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "Participant": {
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "profilePictureUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "joinedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "LastMessage": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                    "_id": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "senderId": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                }
+            },
+            "Conversation": {
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "private",
+                            "group"
+                        ]
+                    },
+                    "participants": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Participant"
+                        }
+                    },
+                    "group": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "createdBy": {
+                                "$ref": "#/components/schemas/ObjectId"
+                            }
+                        }
+                    },
+                    "lastMessage": {
+                        "$ref": "#/components/schemas/LastMessage"
+                    },
+                    "lastMessageAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "seenBy": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FriendSummary"
+                        }
+                    },
+                    "unreadCounts": {
+                        "type": "object",
+                        "description": "Map of user id to that user's unread count.",
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "example": {
+                            "6aa4da6e63dd4ce89eaeb401": 3
+                        }
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "Message": {
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "conversationId": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "senderId": {
+                        "$ref": "#/components/schemas/ObjectId"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "imgUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            }
+        }
+    }
+}
