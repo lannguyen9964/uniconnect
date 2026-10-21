@@ -1,6 +1,6 @@
 # UniConnect
 
-A real-time chat app for university students: direct messages, group chats, and friend requests, with messages delivered over WebSockets.
+A real-time chat app for UTA students: direct messages, group chats, and friend requests, with messages delivered over WebSockets.
 
 > Personal project, still in progress.
 
